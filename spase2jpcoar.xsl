@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <xsl:stylesheet version="1.0"
     xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+    xmlns:dc="http://purl.org/dc/elements/1.1/"
     xmlns:dcterms="http://purl.org/dc/terms/"
     xmlns:spase="http://www.spase-group.org/data/schema"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xmlns:orcid="http://www.orcid.org/ns/orcid"
     xmlns:jpcoar="https://github.com/JPCOAR/schema/blob/master/1.0/"
-    xmlns:datacite="https://schema.datacite.org/meta/kernel-4/">
+    xmlns:datacite="https://schema.datacite.org/meta/kernel-4/"
+    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
 
 <xsl:template match="/spase:Spase">
 
@@ -24,19 +26,23 @@
 
         <!-- title / alternative -->
         <dc:title xml:lang="en">
-            <!-- The GRENE-TEA Project dataset -->
             <xsl:value-of select="//spase:ResourceHeader/spase:ResourceName"/>
         </dc:title>
 
-        <dcterms:alternative xml:lang="en">
-            <xsl:value-of select="//spase:ResourceHeader/spase:AlternateName"/>
-        </dcterms:alternative>
+        <xsl:if test="//spase:ResourceHeader/spase:AlternateName">
+            <dcterms:alternative xml:lang="en">
+                <xsl:value-of select="//spase:ResourceHeader/spase:AlternateName"/>
+            </dcterms:alternative>
+        </xsl:if>
 
         <!-- creator / contributor -->
         <xsl:apply-templates select="//spase:ResourceHeader/spase:Contact"/>
 
         <!-- accessRights -->
         <xsl:apply-templates select="//spase:AccessInformation/spase:AccessRights"/>
+
+        <!-- rights -->
+        <xsl:apply-templates select="//spase:ResourceHeader/spase:Acknowledgement"/>
 
         <!-- subject -->
         <xsl:apply-templates select="//spase:Keyword"/>
@@ -62,6 +68,9 @@
 
         <!-- relation -->
         <xsl:apply-templates select="//spase:ResourceHeader/spase:DOI"/>
+
+        <!-- url -->
+        <xsl:apply-templates select="//spase:AccessInformation/spase:AccessURL/spase:URL"/>
 
         <!-- temporal -->
         <xsl:apply-templates select="//spase:TemporalDescription/spase:TimeSpan"/>
@@ -91,14 +100,14 @@
 
     <!-- Write creator and contributor -->
     <jpcoar:creator>
-        <jpcoar:nameIdentifier nameIdentifierScheme="xxx" nameIdentifierURI="xxx">
+        <!-- jpcoar:nameIdentifier nameIdentifierScheme="xxx" nameIdentifierURI="xxx">
             <xsl:value-of select="$person_id"/>
-        </jpcoar:nameIdentifier>
-        <jpcoar:creatorName>
+        </jpcoar:nameIdentifier -->
+        <jpcoar:creatorName xml:lang="en">
             <xsl:value-of select="$person/spase:PersonName"/>
         </jpcoar:creatorName>
         <jpcoar:affiliation>
-            <jpcoar:affiliationName>
+            <jpcoar:affiliationName xml:lang="en">
                 <xsl:value-of select="$person/spase:OrganizationName"/>
             </jpcoar:affiliationName>
         </jpcoar:affiliation>
@@ -118,14 +127,14 @@
         <xsl:attribute name="contributorType">
             <xsl:value-of select="$role"/>
         </xsl:attribute>
-        <jpcoar:nameIdentifier nameIdentifierScheme="xxx" nameIdentifierURI="xxx">
+        <!--jpcoar:nameIdentifier nameIdentifierScheme="xxx" nameIdentifierURI="xxx">
             <xsl:value-of select="$person_id"/>
-        </jpcoar:nameIdentifier>
-        <jpcoar:contributorName>
+        </jpcoar:nameIdentifier -->
+        <jpcoar:contributorName xml:lang="en">
             <xsl:value-of select="$person/spase:PersonName"/>
         </jpcoar:contributorName>
         <jpcoar:affiliation>
-            <jpcoar:affiliationName>
+            <jpcoar:affiliationName xml:lang="en">
                 <xsl:value-of select="$person/spase:OrganizationName"/>
             </jpcoar:affiliationName>
         </jpcoar:affiliation>
@@ -133,16 +142,28 @@
 </xsl:template>
 
 <xsl:template match="//spase:AccessInformation/spase:AccessRights">
-    <dcterms:accessRights>
-        <xsl:choose>
-            <xsl:when test="text()='Open'">
+    <xsl:choose>
+        <xsl:when test="text()='Open'">
+            <dcterms:accessRights rdf:resource="http://purl.org/coar/access_right/c_abf2">
                 <xsl:text>open access</xsl:text>
-            </xsl:when>
-            <xsl:otherwise>
+            </dcterms:accessRights>
+        </xsl:when>
+        <xsl:otherwise>
+            <dcterms:accessRights rdf:resource="http://purl.org/coar/access_right/c_16ec">
                 <xsl:text>restricted access</xsl:text>
-            </xsl:otherwise>
-        </xsl:choose>
-    </dcterms:accessRights>
+            </dcterms:accessRights>
+        </xsl:otherwise>
+        <!--
+            embargoed access -> rdf:resource="http://purl.org/coar/access_right/c_f1cf"
+            metadata only access -> rdf:resource="http://purl.org/coar/access_right/c_14cb"
+        -->
+    </xsl:choose>
+</xsl:template>
+
+<xsl:template match="//spase:ResourceHeader/spase:Acknowledgement">
+    <dc:rights xml:lang="en">
+        <xsl:value-of select="text()"/>
+    </dc:rights>
 </xsl:template>
 
 <xsl:template match="//spase:Keyword">
@@ -152,15 +173,17 @@
 </xsl:template>
 
 <xsl:template match="//spase:ResourceHeader/spase:Description">
-    <datacite:description descriptionType="Abstract">
+    <datacite:description xml:lang="en" descriptionType="Abstract">
         <xsl:value-of select="text()"/>
     </datacite:description>
 </xsl:template>
 
 <xsl:template match="//spase:ResourceHeader/spase:ReleaseDate">
-    <datacite:date dateType="Issued">
-        <xsl:value-of select="text()"/>
-    </datacite:date>
+    <xsl:if test="string-length(text() >= 10)">
+        <datacite:date dateType="Issued">
+            <xsl:value-of select="substring(text(), 1, 10)"/>
+        </datacite:date>
+    </xsl:if>
 </xsl:template>
 
 <xsl:template match="//spase:ProviderVersion">
@@ -172,6 +195,14 @@
 <xsl:template match="//spase:ResourceHeader/spase:DOI">
     <jpcoar:relation relationType="isIdenticalTo">
         <jpcoar:relatedIdentifier identifierType="DOI">
+            <xsl:value-of select="text()"/>
+        </jpcoar:relatedIdentifier>
+    </jpcoar:relation>
+</xsl:template>
+
+<xsl:template match="//spase:AccessInformation/spase:AccessURL/spase:URL">
+    <jpcoar:relation relationType="isIdenticalTo">
+        <jpcoar:relatedIdentifier identifierType="URI">
             <xsl:value-of select="text()"/>
         </jpcoar:relatedIdentifier>
     </jpcoar:relation>
@@ -226,7 +257,7 @@
             <xsl:value-of select="spase:Project"/>
         </jpcoar:awardTitle>
         <xsl:if test="spase:AwardNumber">
-            <datacite:awardNumber awardURI="http://cordis.europa.eu/project/rcn/100603_en.html">
+            <datacite:awardNumber>
                 <xsl:value-of select="spase:AwardNumber"/>
             </datacite:awardNumber>
         </xsl:if>
